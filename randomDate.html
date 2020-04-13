@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="margin: 0;">
+    <div style="text-align: center; padding: 1em; zoom: 200%;">
+      <button id="bGenerate">Generate</button>
+      <p id="date">&nbsp;</p>
+      <p id="stopwatch">&nbsp;</p>
+      <button id="bSolve">Solve</button>
+      <div id="result" style="visibility: hidden;">
+        <p id="weekday"></p>
+        <p id="dday"></p>
+        <button id="bRestart">Restart</button>
+      </div>
+    </div>
+    <script type="module">
+'use strict'
+
+const isLeapYear = year => year % 4 === 0 && (year % 400 === 0 || year % 100 !== 0)
+const getDayAndDDay = (() => {
+  function getDDay (year) {
+    const anchorDay = [2, 0, 5, 3][Math.floor((year / 100) % 4)]
+    const yearSfx = Math.floor(year % 100)
+    const offset = (yearSfx + Math.floor(yearSfx / 4)) % 7
+    return (anchorDay + offset) % 7
+  }
+  const monthDDays = [3, 7, 7, 4, 9, 6, 11, 8, 5, 10, 7, 12] // non-leap year
+  return (year, monthIdx, monthDay) => {
+    const ddayNum = getDDay(year)
+    const weekdayNum = (
+      ddayNum + 35 + monthDay - monthDDays[monthIdx] - (monthIdx < 2 && isLeapYear(year) ? 1 : 0)
+    ) % 7
+    return [weekdayNum, ddayNum]
+  }
+})()
+const getRandomDate = () => {
+  const dayCount = Math.floor(Math.random() * 365.2425 * ((new Date()).getFullYear() + 1))
+  const year = Math.floor(dayCount / 365.2425)
+  let yearDateCount = Math.floor(dayCount % 365.2425)
+  let monthIdx = null
+  let monthDay = null
+  // horrible
+  for (const [index, count] of [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31].entries()) {
+    if (yearDateCount < count) {
+      monthIdx = index
+      monthDay = yearDateCount + 1
+      break
+    } else {
+      yearDateCount -= count
+    }
+  }
+  return [year, monthIdx, monthDay]
+}
+
+const monthAbbrevs = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+let endTime = null // set non-null to kill stopwatch
+const startStopwatch = (() => {
+  let startTime = null
+  function paintStopwatch (hInterval) {
+    if (startTime !== null) {
+      if (endTime === null) {
+        stopwatch.textContent = (Date.now() - startTime) / 1000
+      } else {
+        stopwatch.textContent = (endTime - startTime) / 1000
+        startTime = null // latches off next call
+      }
+    } else {
+      clearInterval(hInterval)
+    }
+  }
+  return () => {
+    [startTime, endTime] = [Date.now(), null]
+    const hInterval = setInterval(() => paintStopwatch(hInterval), 10)
+  }
+})()
+
+bGenerate.addEventListener('click', function (e) {
+  const [year, monthIdx, monthDay] = getRandomDate()
+  // write date
+  date.textContent = `${monthAbbrevs[monthIdx]} ${monthDay}, ${year}`
+  // get weekday
+  const [weekdayNum, ddayNum] = getDayAndDDay(year, monthIdx, monthDay)
+  // hide finish screen
+  result.style.visibility = 'hidden'
+  // write answer
+  weekday.textContent = `${weekdayNames[weekdayNum]}`
+  dday.textContent = `Halloween: ${weekdayNames[ddayNum]}`
+  // start timer
+  startStopwatch()
+})
+bSolve.addEventListener('click', function (e) {
+  endTime = Date.now()
+  result.style.visibility = ''
+})
+bRestart.addEventListener('click', function (e) {
+  result.style.visibility = 'hidden'
+  startStopwatch()
+})
+    </script>
+  </body>
+</html>
