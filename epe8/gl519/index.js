@@ -36,13 +36,13 @@ _.each = function (o, func) {
 _.map = function (o, func) {
     if (!func) func = _.identity
     if (o instanceof Array) {
-        var accum = []
-        for (var i = 0; i < o.length; i++)
+        const accum = []
+        for (let i = 0; i < o.length; i++)
             accum[i] = func(o[i], i, o)
         return accum
     } else {
-        var accum = {}
-        for (var k in o)
+        const accum = {}
+        for (const k in o)
             if (o.hasOwnProperty(k))
                 accum[k] = func(o[k], k, o)
         return accum
@@ -52,14 +52,14 @@ _.map = function (o, func) {
 _.filter = function (o, func) {
     if (!func) func = _.identity
     if (o instanceof Array) {
-        var accum = []
-        for (var i = 0; i < o.length; i++)
+        const accum = []
+        for (let i = 0; i < o.length; i++)
             if (func(o[i], i, o))
                 accum.push(o[i])
         return accum
     } else {
-        var accum = {}
-        for (var k in o)
+        const accum = {}
+        for (const k in o)
             if (o.hasOwnProperty(k))
                 if (func(o[k], k, o))
                     accum[k] = o[k]
@@ -312,8 +312,8 @@ _.lines = function (s) {
     return s.split(/\r\n|\r|\n/)
 }
 
-_.sum = function (a) {
-    return _.fold(a, function (a, b) { return a + b }, 0)
+_.sum = function (c) {
+    return _.fold(c, function (a, b) { return a + b }, 0)
 }
 
 _.sample = function (o) {
@@ -342,13 +342,13 @@ _.randomInt = _.randomInteger = _.randomIndex = function (a, b) {
 
 _.randomString = function (len, re) {
     re = re || /[a-zA-Z0-9]/
-    var chars = []
-    for (var i = 0; i < 256; i++) {
-        var c = String.fromCharCode(i)
+    let chars = []
+    for (let i = 0; i < 256; i++) {
+        let c = String.fromCharCode(i)
         if (c.match(re)) chars.push(c)
     }
-    var ret = []
-    for (var i = 0; i < len; i++) {
+    let ret = []
+    for (let i = 0; i < len; i++) {
         ret.push(chars[Math.floor(Math.random() * chars.length)])
     }
     return ret.join('')
@@ -520,10 +520,10 @@ _.dialog = function (content) {
     var win = $(window)
     var w = win.width()
     var h = win.height()
-    
+
     var b
     $('body').append(b = $('<div style="position:fixed;left:0px;top:0px; z-index:10000;background:black;opacity:0.5"/>').width(w).height(h))
-    
+
     var d = $('<div style="position:fixed;z-index:20000;background:white"/>').append(content)
     $('body').append(d)
     setTimeout(function () {
@@ -534,7 +534,7 @@ _.dialog = function (content) {
             top : Math.round(h / 2 - d.height() / 2) + "px"
         })
     }, 0)
-    
+
     _.closeDialog = function () {
         b.remove()
         d.remove()
@@ -572,11 +572,11 @@ _.decycle = function(o) {
                 var oo = o[rootKey].newObj
                 var path = o[rootKey].path
                 if (o instanceof Array) {
-                    for (var i = 0; i < o.length; i++) {
+                    for (let i = 0; i < o.length; i++) {
                         oo[i] = helper(o[i], path + '[' + i + ']')
                     }
                 } else {
-                    for (k in o) {
+                    for (const k in o) {
                         if (k != rootKey) {
                             oo[k] = helper(o[k], path + '[' + JSON.stringify(k) + ']')
                         }
@@ -584,15 +584,15 @@ _.decycle = function(o) {
                 }
             }
             function cleanup() {
-                for (var i = 0; i < objs.length; i++) {
+                for (let i = 0; i < objs.length; i++) {
                     delete objs[i][rootKey]
                 }
             }
-            
+
             var ret = {}
             ret.cycle_root = rootKey
             ret[rootKey] = helper(o, rootKey)
-            for (var i = 0; i < objs.length; i++) {
+            for (let i = 0; i < objs.length; i++) {
                 helper2(objs[i])
             }
             cleanup()
@@ -611,10 +611,10 @@ _.decycle = function(o) {
 _.recycle = function (obj) {
     // regex adapted from https://github.com/douglascrockford/JSON-js/blob/master/cycle.js
     var r = /^root(?:_\d+)?(?:\[(?:\d+|\"(?:[^\\\"\u0000-\u001f]|\\([\\\"\/bfnrt]|u[0-9a-zA-Z]{4}))*\")\])*$/
-    
+
     if (!obj.cycle_root || !(obj.cycle_root in obj))
         throw "doesn't look recycle-able"
-    
+
     var rootKey = obj.cycle_root
     function helper(o) {
         if (typeof(o) == "string" && o.slice(0, rootKey.length) == rootKey) {
@@ -688,18 +688,19 @@ _.exit = function () {
 }
 
 _.md5 = function (s) {
-    return require('crypto').createHash('md5').update(s).digest("hex")    
+    return require('crypto').createHash('md5').update(s).digest("hex")
 }
 
 _.run = function (f, x) {
     var Fiber = require('fibers')
     var c = Fiber.current
     if (c) c.yielding = true
+    var ret
     if (typeof(f) == 'function')
-        var ret = Fiber(f).run(x)
+        ret = Fiber(f).run(x)
     else
         if (f != c && f.started && !f.yielding)
-            var ret = f.run(x)
+            ret = f.run(x)
     if (c) c.yielding = false
     return ret
 }
@@ -731,7 +732,7 @@ _.p = _.promise = function () {
         }
     } else {
         while (f.promise == "waiting") _.yield()
-        var p = f.promise 
+        var p = f.promise
         delete f.promise
         if (p.err) throw p.err
         return p.val
@@ -754,12 +755,12 @@ _.parallel = function (funcs) {
 
 _.consume = function (input, encoding) {
     if (encoding == 'stream') return input
-        
+
     var chunks = []
     if (encoding != 'buffer') {
         input.setEncoding(encoding || 'utf8')
     }
-    
+
     var p = _.p()
     input.on('data', function (chunk) {
         chunks.push(chunk)
@@ -778,9 +779,9 @@ _.wget = function (method, url, params, encoding) {
     if (method && method.match(/:/)) {
         return _.wget(null, arguments[0], arguments[1], arguments[2])
     }
-    
+
     url = require('url').parse(url)
-    
+
     var o = {
         method : method || (params ? 'POST' : 'GET'),
         hostname : url.hostname,
@@ -791,18 +792,19 @@ _.wget = function (method, url, params, encoding) {
 
     o.headers = {}
     o.headers["User-Agent"] = "gl519/1.0"
+    var data
     if (!o.method.match(/^get$/i)) {
         if (!params) {
-            var data = ""
+            data = ""
         } else if (typeof(params) == 'string') {
-            var data = params
+            data = params
         } else {
-            var data = _.values(_.map(params, function (v, k) { return k + "=" + encodeURIComponent(v) })).join('&')
+            data = _.values(_.map(params, function (v, k) { return k + "=" + encodeURIComponent(v) })).join('&')
         }
         o.headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
         o.headers["Content-Length"] = Buffer.byteLength(data, 'utf8')
     }
-    
+
     var r = require(url.protocol.replace(/:/, '')).request(o, _.p())
     if (data)
         r.end(data, 'utf8')
