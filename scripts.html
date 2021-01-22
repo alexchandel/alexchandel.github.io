@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scripts Quiz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"
+        integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg=="
+        crossorigin="anonymous" defer></script> <!--https://api.jquery.com/ https://cdnjs.com/libraries/jquery -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-Piv4xVNRyMGpqkS2by6br4gNJ7DXjqk09RmUpJ8jgGtD7zP9yug3goQfGII0yAns"
+        crossorigin="anonymous" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css"
+        integrity="sha384-B0vP5xmATw1+K9KRQjQERJvTumQW0nPEzvF6L/Z6nronJ3oUOFUFpCjEUQouq2+l"
+        crossorigin="anonymous"> <!--https://getbootstrap.com/ -->
+</head>
+<body>
+    <nav class="navbar navbar-light bg-light h1 d-flex justify-content-center">
+        <span class="navbar-brand">Scripts</span>
+    </nav>
+    <div class="d-flex flex-column align-items-center">
+        <div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="language" id="language1" value="Phoenician">
+                <label class="form-check-label" for="language1">Phoenician</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="language" id="language2" value="Greek">
+                <label class="form-check-label" for="language2">Greek</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="language" id="language3" value="Hebrew" checked>
+                <label class="form-check-label" for="language3">Hebrew</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="language" id="language4" value="Arabic">
+                <label class="form-check-label" for="language4">Arabic</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="language" id="language5" value="Hindi">
+                <label class="form-check-label" for="language5">Hindi</label>
+            </div>
+        </div>
+        <h1 id="view" class="m-2 p-2">?</h1>
+        <button type="button" class="btn btn-primary" id="reset">Reset</button>
+    </div>
+</body>
+<script>
+'use strict';
+var letters = {
+    'Phoenician': [
+        [
+            '𐤀', '𐤁', '𐤂', '𐤃', '𐤄', '𐤅', '𐤆', '𐤇', '𐤈', '𐤉', '𐤊', '𐤋', '𐤌', '𐤍', '𐤎', '𐤏',
+            '𐤐', '𐤑', '𐤒', '𐤓', '𐤔', '𐤕'
+        ],
+        ['']
+    ],
+    'Greek': [
+        ['', 'β', 'γ', 'δ', 'ζ', 'θ', 'κ', 'λ', 'μ', 'ν', 'ξ', 'π', 'ρ', 'σ', 'τ', 'φ', 'χ', 'ψ'],
+        ['α', 'ε', 'η', 'ι', 'ο', 'υ', 'ω', 'αι', 'οι', 'ou', 'ᾳ', 'ῃ', 'ῳ', 'αυ', 'ευ', 'υι']
+    ],
+    'Hebrew': [
+        [
+            'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'כ', 'ך',
+            'ל', 'מ', 'ם', 'נ', 'ן', 'ס', 'ע', 'פ', 'ף', 'צ', 'ץ', 'ק', 'ר', 'ש', 'ת'
+        ],
+        [
+            '\u05B0', '\u05B1', '\u05B2', '\u05B3',
+            '\u05B4', '\u05B5', '\u05B6', '\u05B7', '\u05B8', '\u05Ba', 'ֺוֹ‎', 'וּ‎', '\u05Bb'
+        ]
+    ],
+    'Arabic': [
+        [
+            'ـا', 'ا',
+            'ـب', 'ـبـ', 'بـ', 'ب',
+            'ـت', 'ـتـ', 'تـ', 'ت',
+            'ـث', 'ـثـ', 'ثـ', 'ث',
+            'ـج', 'ـجـ', 'جـ', 'ج',
+            'ـح', 'ـحـ', 'حـ', 'ح',
+            'ـخ', 'ـخـ', 'خـ', 'خ',
+            'ـد', 'د',
+            'ـذ', 'ذ',
+            'ـر', 'ر',
+            'ـز', 'ز',
+            'ـس', 'ـسـ', 'سـ', 'س',
+            'ـش', 'ـشـ', 'شـ', 'ش',
+            'ـص', 'ـصـ', 'صـ', 'ص',
+            'ـض', 'ـضـ', 'ضـ', 'ض',
+            'ـط', 'ـطـ', 'طـ', 'ط',
+            'ـظ', 'ـظـ', 'ظـ', 'ظ',
+            'ـع', 'ـعـ', 'عـ', 'ع',
+            'ـغ', 'ـغـ', 'غـ', 'غ',
+            'ـف', 'ـفـ', 'فـ', 'ف',
+            'ـق', 'ـقـ', 'قـ', 'ق',
+            'ـك', 'ـكـ', 'كـ', 'ك',
+            'ـل', 'ـلـ', 'لـ', 'ل',
+            'ـم', 'ـمـ', 'مـ', 'م',
+            'ـن', 'ـنـ', 'نـ', 'ن',
+            'ـه', 'ـهـ', 'هـ', 'ه',
+            'ـو', 'و',
+            'ـي', 'ـيـ', 'يـ', 'ي',
+            'ء',
+            'ـآ', 'آ',
+            'ـة', 'ة',
+            'ـى', 'ى',
+            'ﻼ', 'ﻻ', // Persian:
+            'ـپ', 'ـپـ', 'پـ', 'پ',
+            'ڤ', 'ـڤ', 'ـڤـ', 'ڤـ',
+            'ـچ', 'ـچـ', 'چـ', 'چ',
+            'ـژ', 'ژ',
+            'ـگ', 'ـگـ', 'گـ', 'گ', // Urdu:
+            'ٹ', 'ڈ', 'ڑ'
+        ],
+        ['\u064E', '\u064F', '\u0650']
+    ],
+    'Hindi': [
+        [
+            'क', 'ख', 'ग', 'घ', 'ङ', 'ह', 'ख़', 'ग़',
+            'च', 'छ', 'ज', 'झ', 'ञ', 'य', 'श', 'झ़',
+            'ट', 'ठ', 'ड', 'ढ', 'ण', 'ड़', 'ढ़', 'ळ', 'ऴ', 'ष',
+            'त', 'थ', 'द', 'ध', 'न', 'र', 'ल', 'स', 'ज़',
+            'प', 'फ', 'ब', 'भ', 'म', 'व', 'फ़'
+        ], [
+            '', '\u093E', '\u093F', '\u0940', '\u0941', '\u0942',
+            '\u0947', '\u0948', '\u094B', '\u094C'
+        ]
+    ]
+}
+;(m => document.readyState == 'complete' ? m() : window.addEventListener('load', m))(() => {
+    $('#reset')[0].addEventListener('click', function () {
+        const lang = $('input[name="language"]:checked').val()
+        const [conses, vowels] = letters[lang]
+        const cons = conses[Math.floor(Math.random() * conses.length)]
+        const randB = () => Math.random() > 0.5
+        const mid = lang === 'Hebrew'
+            ? ('בגדךכףפת'.indexOf(cons) >= 0 ? (randB() ? '\u05BC' : '')
+                : cons === 'ש' ? (randB() ? '\u05C1' : '\u05C2') : '')
+            : ''
+        const vowel = vowels[Math.floor(Math.random() * vowels.length)]
+        const sfx = (lang === 'Greek' && cons === '') ? (randB() ? '\u0314' : '\u0313') : ''
+        $('#view')[0].textContent = cons + mid + vowel + sfx
+    })
+})
+</script>
+</html>
