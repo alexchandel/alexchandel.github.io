@@ -10,9 +10,11 @@
       <p id="date">&nbsp;</p>
       <p id="stopwatch">&nbsp;</p>
       <button id="bSolve">Solve</button>
+      <button id="bPeek">Peek</button>
       <div id="result" style="visibility: hidden;">
         <p id="weekday"></p>
         <p id="dday"></p>
+        <button id="bHide">Hide</button>
         <button id="bRestart">Restart</button>
       </div>
     </div>
@@ -96,6 +98,15 @@ bGenerate.addEventListener('click', function (e) {
 bSolve.addEventListener('click', function (e) {
   endTime = Date.now()
   result.style.visibility = ''
+})
+bPeek.addEventListener('click', function (e) {
+  result.style.visibility = ''
+})
+bPeek.addEventListener('click', function (e) {
+  result.style.visibility = ''
+})
+bHide.addEventListener('click', function (e) {
+  result.style.visibility = 'hidden'
 })
 bRestart.addEventListener('click', function (e) {
   result.style.visibility = 'hidden'
