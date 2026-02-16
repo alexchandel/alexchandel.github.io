@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Flash Cards</title>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      color: #000;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: pan-y;
+      user-select: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #000; color: #fff; }
+    }
+
+    #card {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      box-sizing: border-box;
+      text-align: center;
+      line-height: 1;
+    }
+    #glyph {
+      font-size: min(56vw, 56vh);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.1em;
+    }
+
+    #hud {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 14px;
+      opacity: 0.78;
+    }
+
+    .pill {
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.85);
+      color: #000;
+      backdrop-filter: blur(6px);
+    }
+    @media (prefers-color-scheme: dark) {
+      .pill {
+        border-color: rgba(255,255,255,0.2);
+        background: rgba(0,0,0,0.65);
+        color: #fff;
+      }
+    }
+    button.pill {
+      font: inherit;
+      border: 1px solid rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+    @media (prefers-color-scheme: dark) {
+      button.pill { border-color: rgba(255,255,255,0.2); }
+    }
+    button.pill:active { transform: translateY(1px); }
+
+    /* Jump menu modal */
+    #modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: stretch;
+      justify-content: center;
+      background: rgba(0,0,0,0.35);
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      box-sizing: border-box;
+    }
+    #modal.open { display: flex; }
+
+    #sheet {
+      width: min(720px, 100%);
+      height: min(720px, 100%);
+      margin: auto;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.15);
+      background: rgba(255,255,255,0.92);
+      color: #000;
+      backdrop-filter: blur(10px);
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    @media (prefers-color-scheme: dark) {
+      #sheet {
+        border-color: rgba(255,255,255,0.2);
+        background: rgba(0,0,0,0.78);
+        color: #fff;
+      }
+    }
+    #sheetHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(0,0,0,0.12);
+    }
+    @media (prefers-color-scheme: dark) {
+      #sheetHeader { border-bottom-color: rgba(255,255,255,0.16); }
+    }
+    #sheetTitle { font-weight: 600; }
+    #closeBtn { padding: 6px 10px; }
+
+    #catBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(0,0,0,0.12);
+    }
+    @media (prefers-color-scheme: dark) {
+      #catBar { border-bottom-color: rgba(255,255,255,0.16); }
+    }
+    .chip {
+      border-radius: 999px;
+      padding: 6px 10px;
+      border: 1px solid rgba(0,0,0,0.15);
+      background: rgba(255,255,255,0.7);
+      cursor: pointer;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .chip.active {
+      font-weight: 700;
+      background: rgba(255,255,255,0.95);
+    }
+    @media (prefers-color-scheme: dark) {
+      .chip { border-color: rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); }
+      .chip.active { background: rgba(0,0,0,0.8); }
+    }
+
+    #grid {
+      padding: 10px 12px 14px;
+      overflow: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 10px;
+      align-content: start;
+    }
+    .cell {
+      aspect-ratio: 1 / 1;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.12);
+      background: rgba(255,255,255,0.7);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 34px;
+      line-height: 1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .cell { border-color: rgba(255,255,255,0.16); background: rgba(0,0,0,0.45); }
+    }
+    .cell:active { transform: translateY(1px); }
+
+    /* Hide HUD text selection / pointer issues on iOS */
+    #hud, #modal { -webkit-user-select: none; user-select: none; }
+  </style>
+</head>
+<body>
+  <div id="card" aria-label="Flash card">
+    <div id="glyph" aria-live="polite"></div>
+  </div>
+
+  <div id="hud">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="pill" id="jumpBtn" title="Jump">Jump</button>
+      <div class="pill" id="pos">1 / 1</div>
+    </div>
+    <button class="pill" id="shuffleBtn" title="Shuffle">Shuffle</button>
+  </div>
+
+  <div id="modal" role="dialog" aria-modal="true" aria-label="Jump menu">
+    <div id="sheet">
+      <div id="sheetHeader">
+        <div id="sheetTitle">Jump</div>
+        <button class="pill" id="closeBtn">Close</button>
+      </div>
+      <div id="catBar"></div>
+      <div id="grid"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // Deck entries: { t: "glyph", c: "Category", n?: "name" } (names are optional)
+  const deckSpec = [];
+
+  function addMany(category, items) {
+    for (const t of items) deckSpec.push({ t, c: category });
+  }
+
+  // Letters
+  addMany("ABC", [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"]);
+  addMany("abc", [..."abcdefghijklmnopqrstuvwxyz"]);
+
+  // Numbers
+  addMany("123", [..."0123456789"]);
+
+  // Simple symbols (minimal, recognizable shapes)
+  addMany("Symbols", ["★","♥","●","■","▲","◆","☀️","☁️","☂️","☕️","♫","✓","✚","✖️","➕","➖","⭕️","❌"]);
+
+  // Animals (more!)
+  addMany("Animals", [
+    "🐶","🐱","🦁","🐯","🐻","🐼","🐨","🐸","🐵","🐰","🦊","🐮","🐷","🐔","🐤","🦆","🦉",
+    "🐴","🦄","🐝","🐞","🦋","🐢","🐙","🐠","🐬","🦈","🦀","🦖"
+  ]);
+
+  // Foods (baby-recognizable)
+  addMany("Food", ["🍎","🍌","🍓","🍇","🍉","🥕","🥦","🍞","🧀","🥚","🍪","🍼","🥛"]);
+
+  // Vehicles
+  addMany("Vehicles", ["🚗","🚕","🚌","🚑","🚒","🚜","🚚","🚲","🛴","🚀","✈️"]);
+
+  // Home things (more baby-familiar objects)
+  addMany("Home", [
+    "📚","🧸","🪀","🧩","🎈","🖍️","✏️","🧼","🪥","🛁","🚽","🧻","🛏️","🪑","🛋️",
+    "🚪","🪟","💡","🔑","📦","🧺","🧴","🍽️","🥄","🍴","🧸","🧃","🍼",
+    "⏰","⌚️","📱","🔌","📺","🎵","🔔"
+  ]);
+
+  // Feelings / faces (a few, non-hyper)
+  addMany("Faces", ["😀","🙂","😮","😴","🥳","😢","😡","😆"]);
+
+  // --- State ---
+  let deck = deckSpec.slice(); // current order
+  let i = 0;
+  let activeCategory = "All";
+
+  const glyphEl = document.getElementById("glyph");
+  const posEl = document.getElementById("pos");
+  const jumpBtn = document.getElementById("jumpBtn");
+  const shuffleBtn = document.getElementById("shuffleBtn");
+
+  const modal = document.getElementById("modal");
+  const closeBtn = document.getElementById("closeBtn");
+  const catBar = document.getElementById("catBar");
+  const grid = document.getElementById("grid");
+
+  function clampIndex(idx) {
+    const n = deck.length || 1;
+    return ((idx % n) + n) % n;
+  }
+
+  function render() {
+    if (!deck.length) {
+      glyphEl.textContent = "—";
+      posEl.textContent = "0 / 0";
+      return;
+    }
+    i = clampIndex(i);
+    glyphEl.textContent = deck[i].t;
+    posEl.textContent = `${i + 1} / ${deck.length}`;
+    history.replaceState(null, "", `#${i}`);
+  }
+
+  function next() { i++; render(); }
+  function prev() { i--; render(); }
+
+  function shuffleInPlace(arr) {
+    for (let j = arr.length - 1; j > 0; j--) {
+      const k = Math.floor(Math.random() * (j + 1));
+      [arr[j], arr[k]] = [arr[k], arr[j]];
+    }
+  }
+
+  function shuffleDeck() {
+    const current = deck[i];
+    shuffleInPlace(deck);
+    // keep same glyph if possible
+    i = Math.max(0, deck.findIndex(x => x.t === current.t && x.c === current.c));
+    render();
+    if (modal.classList.contains("open")) buildGrid(); // refresh menu order
+  }
+
+  // --- Tap/click advances; shift-tap goes back ---
+  document.getElementById("card").addEventListener("click", (e) => {
+    if (modal.classList.contains("open")) return;
+    if (e.shiftKey) prev();
+    else next();
+  });
+
+  // Keyboard
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { if (modal.classList.contains("open")) closeModal(); return; }
+    if (modal.classList.contains("open")) return;
+
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
+    else if (e.key.toLowerCase() === "s") { shuffleDeck(); }
+    else if (e.key.toLowerCase() === "j") { openModal(); }
+  }, { passive: false });
+
+  // Touch swipe (no animations)
+  let startX = 0, startY = 0, tracking = false;
+  const SWIPE_MIN = 40, SWIPE_MAX_Y = 80;
+
+  window.addEventListener("touchstart", (e) => {
+    if (modal.classList.contains("open")) return;
+    if (!e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; tracking = true;
+  }, { passive: true });
+
+  window.addEventListener("touchend", (e) => {
+    if (modal.classList.contains("open")) return;
+    if (!tracking) return;
+    tracking = false;
+    const t = (e.changedTouches && e.changedTouches[0]) || null;
+    if (!t) return;
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+
+    if (Math.abs(dy) > SWIPE_MAX_Y) return;
+    if (Math.abs(dx) < SWIPE_MIN) return;
+    if (dx < 0) next(); else prev();
+  }, { passive: true });
+
+  shuffleBtn.addEventListener("click", shuffleDeck);
+
+  // --- Jump Menu ---
+  function openModal() {
+    modal.classList.add("open");
+    buildCategoryBar();
+    buildGrid();
+  }
+  function closeModal() {
+    modal.classList.remove("open");
+  }
+
+  jumpBtn.addEventListener("click", openModal);
+  closeBtn.addEventListener("click", closeModal);
+
+  // Close if you tap outside the sheet
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  function categories() {
+    const set = new Set(deckSpec.map(x => x.c));
+    return ["All", ...Array.from(set)];
+  }
+
+  function buildCategoryBar() {
+    catBar.innerHTML = "";
+    for (const c of categories()) {
+      const b = document.createElement("button");
+      b.className = "chip" + (c === activeCategory ? " active" : "");
+      b.textContent = c;
+      b.addEventListener("click", () => {
+        activeCategory = c;
+        buildCategoryBar();
+        buildGrid();
+      });
+      catBar.appendChild(b);
+    }
+  }
+
+  function filteredIndices() {
+    const idxs = [];
+    for (let k = 0; k < deck.length; k++) {
+      if (activeCategory === "All" || deck[k].c === activeCategory) idxs.push(k);
+    }
+    return idxs;
+  }
+
+  function buildGrid() {
+    grid.innerHTML = "";
+    const idxs = filteredIndices();
+    for (const k of idxs) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.textContent = deck[k].t;
+      cell.title = `${deck[k].c}`;
+      cell.addEventListener("click", () => {
+        i = k;
+        render();
+        closeModal();
+      });
+      grid.appendChild(cell);
+    }
+  }
+
+  // Restore index from hash if present
+  const m = location.hash.match(/^#(\d+)$/);
+  if (m) i = parseInt(m[1], 10) || 0;
+
+  render();
+
+  // ---- One-file PWA: manifest + service worker ----
+  const manifest = {
+    name: "Flash Cards",
+    short_name: "Cards",
+    start_url: "./",
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#ffffff",
+    icons: [
+      {
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Ctext x='50%25' y='58%25' text-anchor='middle' font-size='320' font-family='system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' fill='black'%3EA%3C/text%3E%3C/svg%3E",
+        sizes: "512x512",
+        type: "image/svg+xml",
+        purpose: "any"
+      }
+    ]
+  };
+
+  const manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+  const manifestURL = URL.createObjectURL(manifestBlob);
+  const link = document.createElement("link");
+  link.rel = "manifest";
+  link.href = manifestURL;
+  document.head.appendChild(link);
+
+  if ("serviceWorker" in navigator) {
+    const swCode = `
+      const CACHE = "flashcards-v2";
+      self.addEventListener("install", (e) => {
+        e.waitUntil((async () => {
+          const cache = await caches.open(CACHE);
+          await cache.addAll(["./", "./index.html"]);
+          self.skipWaiting();
+        })());
+      });
+      self.addEventListener("activate", (e) => {
+        e.waitUntil((async () => {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))));
+          self.clients.claim();
+        })());
+      });
+      self.addEventListener("fetch", (e) => {
+        e.respondWith((async () => {
+          const cached = await caches.match(e.request, { ignoreSearch: true });
+          return cached || fetch(e.request);
+        })());
+      });
+    `;
+    const swBlob = new Blob([swCode], { type: "text/javascript" });
+    const swURL = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swURL).catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
