@@ -20,6 +20,7 @@
       -webkit-tap-highlight-color: transparent;
       touch-action: pan-y;
       user-select: none;
+      overflow: hidden;
     }
     @media (prefers-color-scheme: dark) {
       body { background: #000; color: #fff; }
@@ -34,6 +35,7 @@
       box-sizing: border-box;
       text-align: center;
       line-height: 1;
+      will-change: transform;
     }
     #glyph {
       font-size: min(56vw, 56vh);
@@ -55,6 +57,8 @@
       gap: 10px;
       font-size: 14px;
       opacity: 0.78;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     .pill {
@@ -74,11 +78,7 @@
     }
     button.pill {
       font: inherit;
-      border: 1px solid rgba(0,0,0,0.15);
       cursor: pointer;
-    }
-    @media (prefers-color-scheme: dark) {
-      button.pill { border-color: rgba(255,255,255,0.2); }
     }
     button.pill:active { transform: translateY(1px); }
 
@@ -92,6 +92,8 @@
       background: rgba(0,0,0,0.35);
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
     }
     #modal.open { display: flex; }
 
@@ -180,9 +182,6 @@
       .cell { border-color: rgba(255,255,255,0.16); background: rgba(0,0,0,0.45); }
     }
     .cell:active { transform: translateY(1px); }
-
-    /* Hide HUD text selection / pointer issues on iOS */
-    #hud, #modal { -webkit-user-select: none; user-select: none; }
   </style>
 </head>
 <body>
@@ -211,50 +210,61 @@
 
 <script>
 (() => {
-  // Deck entries: { t: "glyph", c: "Category", n?: "name" } (names are optional)
+  // ---------------- Deck ----------------
   const deckSpec = [];
+  function addMany(category, items) { for (const t of items) deckSpec.push({ t, c: category }); }
 
-  function addMany(category, items) {
-    for (const t of items) deckSpec.push({ t, c: category });
-  }
-
-  // Letters
   addMany("ABC", [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"]);
   addMany("abc", [..."abcdefghijklmnopqrstuvwxyz"]);
-
-  // Numbers
   addMany("123", [..."0123456789"]);
-
-  // Simple symbols (minimal, recognizable shapes)
   addMany("Symbols", ["★","♥","●","■","▲","◆","☀️","☁️","☂️","☕️","♫","✓","✚","✖️","➕","➖","⭕️","❌"]);
 
-  // Animals (more!)
   addMany("Animals", [
     "🐶","🐱","🦁","🐯","🐻","🐼","🐨","🐸","🐵","🐰","🦊","🐮","🐷","🐔","🐤","🦆","🦉",
     "🐴","🦄","🐝","🐞","🦋","🐢","🐙","🐠","🐬","🦈","🦀","🦖"
   ]);
 
-  // Foods (baby-recognizable)
   addMany("Food", ["🍎","🍌","🍓","🍇","🍉","🥕","🥦","🍞","🧀","🥚","🍪","🍼","🥛"]);
-
-  // Vehicles
   addMany("Vehicles", ["🚗","🚕","🚌","🚑","🚒","🚜","🚚","🚲","🛴","🚀","✈️"]);
 
-  // Home things (more baby-familiar objects)
   addMany("Home", [
     "📚","🧸","🪀","🧩","🎈","🖍️","✏️","🧼","🪥","🛁","🚽","🧻","🛏️","🪑","🛋️",
-    "🚪","🪟","💡","🔑","📦","🧺","🧴","🍽️","🥄","🍴","🧸","🧃","🍼",
+    "🚪","🪟","💡","🔑","📦","🧺","🧴","🍽️","🥄","🍴","🧃",
     "⏰","⌚️","📱","🔌","📺","🎵","🔔"
   ]);
 
-  // Feelings / faces (a few, non-hyper)
   addMany("Faces", ["😀","🙂","😮","😴","🥳","😢","😡","😆"]);
 
-  // --- State ---
-  let deck = deckSpec.slice(); // current order
+  // ---------------- State / Render ----------------
+  let deck = deckSpec.slice();
   let i = 0;
+
+  // Restore starting card from URL hash.
+  // Supports:
+  //   #12   -> 0-based index 12
+  //   #A    -> jump to first matching glyph "A"
+  //   #🦁   -> jump to first matching emoji "🦁"
+  (function applyInitialHash() {
+    const raw = (location.hash || "").slice(1);
+    if (!raw) return;
+
+    // If it's an integer, treat it as a 0-based index.
+    if (/^\d+$/.test(raw)) {
+      i = parseInt(raw, 10) || 0;
+      return;
+    }
+
+    // Otherwise treat as a glyph (may include percent-encoding).
+    let glyph = raw;
+    try { glyph = decodeURIComponent(raw); } catch (_) {}
+
+    const idx = deck.findIndex(x => x.t === glyph);
+    if (idx >= 0) i = idx;
+  })();
+
   let activeCategory = "All";
 
+  const cardEl = document.getElementById("card");
   const glyphEl = document.getElementById("glyph");
   const posEl = document.getElementById("pos");
   const jumpBtn = document.getElementById("jumpBtn");
@@ -295,20 +305,12 @@
   function shuffleDeck() {
     const current = deck[i];
     shuffleInPlace(deck);
-    // keep same glyph if possible
     i = Math.max(0, deck.findIndex(x => x.t === current.t && x.c === current.c));
     render();
-    if (modal.classList.contains("open")) buildGrid(); // refresh menu order
+    if (modal.classList.contains("open")) buildGrid();
   }
 
-  // --- Tap/click advances; shift-tap goes back ---
-  document.getElementById("card").addEventListener("click", (e) => {
-    if (modal.classList.contains("open")) return;
-    if (e.shiftKey) prev();
-    else next();
-  });
-
-  // Keyboard
+  // ---------------- Keyboard (desktop) ----------------
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { if (modal.classList.contains("open")) closeModal(); return; }
     if (modal.classList.contains("open")) return;
@@ -319,50 +321,134 @@
     else if (e.key.toLowerCase() === "j") { openModal(); }
   }, { passive: false });
 
-  // Touch swipe (no animations)
-  let startX = 0, startY = 0, tracking = false;
-  const SWIPE_MIN = 40, SWIPE_MAX_Y = 80;
+  // ---------------- Horizontal spring drag ----------------
+  // We implement our own horizontal drag while allowing vertical scroll bounce.
+  // Drag beyond threshold => advance/back. Otherwise snap back.
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let dx = 0;
+  let lockedAxis = null; // "x" or "y" or null
+  const LOCK_ANGLE_TOL = 10; // px: initial ambiguity tolerance
+  const SWIPE_THRESHOLD = () => Math.min(140, Math.max(80, window.innerWidth * 0.22)); // adaptive
+  const RESIST_EDGE = 0.35; // resistance when dragging far
+
+  function setTranslate(x) {
+    cardEl.style.transform = `translateX(${x}px)`;
+  }
+
+  function springBack() {
+    cardEl.style.transition = "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+    setTranslate(0);
+    window.setTimeout(() => { cardEl.style.transition = ""; }, 200);
+  }
+
+  function commitSwipe(dir /* -1 prev, +1 next */) {
+    // Small slide-out then swap then slide back in (subtle; still not "fancy")
+    const outX = dir * -Math.min(180, window.innerWidth * 0.28);
+    cardEl.style.transition = "transform 120ms ease-out";
+    setTranslate(outX);
+
+    window.setTimeout(() => {
+      cardEl.style.transition = "";
+      setTranslate(0);
+      if (dir === 1) next(); else prev();
+    }, 130);
+  }
 
   window.addEventListener("touchstart", (e) => {
     if (modal.classList.contains("open")) return;
     if (!e.touches || e.touches.length !== 1) return;
+
+    dragging = true;
+    lockedAxis = null;
+    dx = 0;
+
     const t = e.touches[0];
-    startX = t.clientX; startY = t.clientY; tracking = true;
+    startX = t.clientX;
+    startY = t.clientY;
   }, { passive: true });
+
+  window.addEventListener("touchmove", (e) => {
+    if (!dragging || modal.classList.contains("open")) return;
+    if (!e.touches || e.touches.length !== 1) return;
+
+    const t = e.touches[0];
+    const curX = t.clientX;
+    const curY = t.clientY;
+
+    const rawDx = curX - startX;
+    const rawDy = curY - startY;
+
+    // Decide whether this gesture is horizontal or vertical early on.
+    if (lockedAxis === null) {
+      if (Math.abs(rawDx) < LOCK_ANGLE_TOL && Math.abs(rawDy) < LOCK_ANGLE_TOL) return;
+      lockedAxis = (Math.abs(rawDx) > Math.abs(rawDy)) ? "x" : "y";
+    }
+
+    if (lockedAxis === "y") {
+      // Let the browser handle vertical scroll/bounce.
+      return;
+    }
+
+    // Horizontal: prevent back/forward navigation and scroll.
+    e.preventDefault();
+
+    // Resistance: as you pull further, movement dampens slightly.
+    const sign = Math.sign(rawDx);
+    const adx = Math.abs(rawDx);
+    const resisted = sign * (adx < 120 ? adx : 120 + (adx - 120) * RESIST_EDGE);
+    dx = resisted;
+
+    setTranslate(dx);
+  }, { passive: false });
 
   window.addEventListener("touchend", (e) => {
-    if (modal.classList.contains("open")) return;
-    if (!tracking) return;
-    tracking = false;
-    const t = (e.changedTouches && e.changedTouches[0]) || null;
-    if (!t) return;
-    const dx = t.clientX - startX;
-    const dy = t.clientY - startY;
+    if (!dragging) return;
+    dragging = false;
 
-    if (Math.abs(dy) > SWIPE_MAX_Y) return;
-    if (Math.abs(dx) < SWIPE_MIN) return;
-    if (dx < 0) next(); else prev();
+    if (lockedAxis !== "x") {
+      // If it was vertical or never decided, do nothing special.
+      dx = 0;
+      lockedAxis = null;
+      return;
+    }
+
+    const threshold = SWIPE_THRESHOLD();
+    if (dx <= -threshold) {
+      // dragged left => next
+      commitSwipe(1);
+    } else if (dx >= threshold) {
+      // dragged right => prev
+      commitSwipe(-1);
+    } else {
+      springBack();
+    }
+
+    dx = 0;
+    lockedAxis = null;
   }, { passive: true });
 
-  shuffleBtn.addEventListener("click", shuffleDeck);
+  window.addEventListener("touchcancel", () => {
+    if (!dragging) return;
+    dragging = false;
+    springBack();
+    dx = 0;
+    lockedAxis = null;
+  }, { passive: true });
 
-  // --- Jump Menu ---
+  // ---------------- Jump Menu ----------------
   function openModal() {
     modal.classList.add("open");
     buildCategoryBar();
     buildGrid();
   }
-  function closeModal() {
-    modal.classList.remove("open");
-  }
+  function closeModal() { modal.classList.remove("open"); }
 
   jumpBtn.addEventListener("click", openModal);
   closeBtn.addEventListener("click", closeModal);
+  shuffleBtn.addEventListener("click", shuffleDeck);
 
-  // Close if you tap outside the sheet
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeModal();
-  });
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
 
   function categories() {
     const set = new Set(deckSpec.map(x => x.c));
@@ -409,10 +495,6 @@
     }
   }
 
-  // Restore index from hash if present
-  const m = location.hash.match(/^#(\d+)$/);
-  if (m) i = parseInt(m[1], 10) || 0;
-
   render();
 
   // ---- One-file PWA: manifest + service worker ----
@@ -425,7 +507,7 @@
     theme_color: "#ffffff",
     icons: [
       {
-        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Ctext x='50%25' y='58%25' text-anchor='middle' font-size='320' font-family='system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' fill='black'%3EA%3C/text%3E%3C/svg%3E",
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Ctext x='50%25' y='58%25' text-anchor='middle' font-size='320'%3E%F0%9F%A6%81%3C/text%3E%3C/svg%3E",
         sizes: "512x512",
         type: "image/svg+xml",
         purpose: "any"
@@ -442,7 +524,7 @@
 
   if ("serviceWorker" in navigator) {
     const swCode = `
-      const CACHE = "flashcards-v2";
+      const CACHE = "flashcards-v3";
       self.addEventListener("install", (e) => {
         e.waitUntil((async () => {
           const cache = await caches.open(CACHE);
