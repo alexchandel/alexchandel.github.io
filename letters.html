@@ -329,17 +329,31 @@
   function prev() { i--; render(); }
 
   let animating = false;
+  let animationTimer = 0;
+  let pendingDirection = 0;
 
   function completeAnimatedStep(dir) {
+    if (!dir) return;
+    pendingDirection = 0;
+    if (animationTimer) {
+      window.clearTimeout(animationTimer);
+      animationTimer = 0;
+    }
     if (dir === 1) i++; else i--;
     render();
     animating = false;
+  }
+
+  function settleAnimation() {
+    if (!animating || !pendingDirection) return;
+    completeAnimatedStep(pendingDirection);
   }
 
   function animateStep(dir, dragDistance = 0) {
     if (!deck.length || animating) return;
 
     animating = true;
+    pendingDirection = dir;
     const width = Math.max(cardEl.clientWidth, 1);
     const startDx = dragDistance;
     const targetDx = dir === 1 ? -width : width;
@@ -349,7 +363,7 @@
       updateTrackPosition(targetDx, true, 240);
     });
 
-    window.setTimeout(() => completeAnimatedStep(dir), 250);
+    animationTimer = window.setTimeout(() => completeAnimatedStep(dir), 250);
   }
 
   function shuffleInPlace(arr) {
@@ -395,8 +409,10 @@
   }
 
   window.addEventListener("touchstart", (e) => {
-    if (modal.classList.contains("open") || animating) return;
+    if (modal.classList.contains("open")) return;
     if (!e.touches || e.touches.length !== 1) return;
+
+    if (animating) settleAnimation();
 
     dragging = true;
     lockedAxis = null;
