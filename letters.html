@@ -27,17 +27,30 @@
     }
 
     #card {
+      position: relative;
       width: 100vw;
       height: 100vh;
-      display: grid;
-      place-items: center;
+      overflow: hidden;
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       box-sizing: border-box;
-      text-align: center;
-      line-height: 1;
+      touch-action: pan-y;
+    }
+    #cardTrack {
+      width: 300%;
+      height: 100%;
+      display: flex;
+      transform: translateX(-33.333333%);
       will-change: transform;
     }
-    #glyph {
+    .face {
+      width: 33.333333%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      line-height: 1;
+    }
+    .glyph {
       font-size: min(56vw, 56vh);
       font-weight: 700;
       letter-spacing: 0.02em;
@@ -186,7 +199,11 @@
 </head>
 <body>
   <div id="card" aria-label="Flash card">
-    <div id="glyph" aria-live="polite"></div>
+    <div id="cardTrack" aria-live="polite">
+      <div class="face"><div class="glyph" id="prevGlyph"></div></div>
+      <div class="face"><div class="glyph" id="glyph"></div></div>
+      <div class="face"><div class="glyph" id="nextGlyph"></div></div>
+    </div>
   </div>
 
   <div id="hud">
@@ -265,7 +282,10 @@
   let activeCategory = "All";
 
   const cardEl = document.getElementById("card");
+  const cardTrackEl = document.getElementById("cardTrack");
+  const prevGlyphEl = document.getElementById("prevGlyph");
   const glyphEl = document.getElementById("glyph");
+  const nextGlyphEl = document.getElementById("nextGlyph");
   const posEl = document.getElementById("pos");
   const jumpBtn = document.getElementById("jumpBtn");
   const shuffleBtn = document.getElementById("shuffleBtn");
@@ -280,20 +300,57 @@
     return ((idx % n) + n) % n;
   }
 
+  const TRACK_CENTER_PERCENT = -100 / 3;
+
+  function updateTrackPosition(dxPx = 0, withTransition = false, durationMs = 220) {
+    cardTrackEl.style.transition = withTransition ? `transform ${durationMs}ms cubic-bezier(0.22, 0.8, 0.22, 1)` : "";
+    cardTrackEl.style.transform = `translateX(calc(${TRACK_CENTER_PERCENT}% + ${dxPx}px))`;
+  }
+
   function render() {
     if (!deck.length) {
+      prevGlyphEl.textContent = "";
       glyphEl.textContent = "—";
+      nextGlyphEl.textContent = "";
       posEl.textContent = "0 / 0";
+      updateTrackPosition();
       return;
     }
     i = clampIndex(i);
+    prevGlyphEl.textContent = deck[clampIndex(i - 1)].t;
     glyphEl.textContent = deck[i].t;
+    nextGlyphEl.textContent = deck[clampIndex(i + 1)].t;
     posEl.textContent = `${i + 1} / ${deck.length}`;
+    updateTrackPosition();
     history.replaceState(null, "", `#${i}`);
   }
 
   function next() { i++; render(); }
   function prev() { i--; render(); }
+
+  let animating = false;
+
+  function completeAnimatedStep(dir) {
+    if (dir === 1) i++; else i--;
+    render();
+    animating = false;
+  }
+
+  function animateStep(dir, dragDistance = 0) {
+    if (!deck.length || animating) return;
+
+    animating = true;
+    const width = Math.max(cardEl.clientWidth, 1);
+    const startDx = dragDistance;
+    const targetDx = dir === 1 ? -width : width;
+
+    updateTrackPosition(startDx, false);
+    window.requestAnimationFrame(() => {
+      updateTrackPosition(targetDx, true, 240);
+    });
+
+    window.setTimeout(() => completeAnimatedStep(dir), 250);
+  }
 
   function shuffleInPlace(arr) {
     for (let j = arr.length - 1; j > 0; j--) {
@@ -315,48 +372,30 @@
     if (e.key === "Escape") { if (modal.classList.contains("open")) closeModal(); return; }
     if (modal.classList.contains("open")) return;
 
-    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
-    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); animateStep(1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); animateStep(-1); }
     else if (e.key.toLowerCase() === "s") { shuffleDeck(); }
     else if (e.key.toLowerCase() === "j") { openModal(); }
   }, { passive: false });
 
-  // ---------------- Horizontal spring drag ----------------
-  // We implement our own horizontal drag while allowing vertical scroll bounce.
-  // Drag beyond threshold => advance/back. Otherwise snap back.
+  // ---------------- Horizontal swipe drag ----------------
+  // Swipes need clear horizontal intent and enough travel so taps do not advance.
   let dragging = false;
   let startX = 0, startY = 0;
   let dx = 0;
   let lockedAxis = null; // "x" or "y" or null
   const LOCK_ANGLE_TOL = 10; // px: initial ambiguity tolerance
-  const SWIPE_THRESHOLD = () => Math.min(140, Math.max(80, window.innerWidth * 0.22)); // adaptive
+  const SWIPE_THRESHOLD = () => Math.min(160, Math.max(96, window.innerWidth * 0.2));
+  const SWIPE_DOMINANCE = 18;
   const RESIST_EDGE = 0.35; // resistance when dragging far
 
-  function setTranslate(x) {
-    cardEl.style.transform = `translateX(${x}px)`;
-  }
-
   function springBack() {
-    cardEl.style.transition = "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)";
-    setTranslate(0);
-    window.setTimeout(() => { cardEl.style.transition = ""; }, 200);
-  }
-
-  function commitSwipe(dir /* -1 prev, +1 next */) {
-    // Small slide-out then swap then slide back in (subtle; still not "fancy")
-    const outX = dir * -Math.min(180, window.innerWidth * 0.28);
-    cardEl.style.transition = "transform 120ms ease-out";
-    setTranslate(outX);
-
-    window.setTimeout(() => {
-      cardEl.style.transition = "";
-      setTranslate(0);
-      if (dir === 1) next(); else prev();
-    }, 130);
+    updateTrackPosition(0, true, 180);
+    window.setTimeout(() => { updateTrackPosition(); }, 190);
   }
 
   window.addEventListener("touchstart", (e) => {
-    if (modal.classList.contains("open")) return;
+    if (modal.classList.contains("open") || animating) return;
     if (!e.touches || e.touches.length !== 1) return;
 
     dragging = true;
@@ -369,7 +408,7 @@
   }, { passive: true });
 
   window.addEventListener("touchmove", (e) => {
-    if (!dragging || modal.classList.contains("open")) return;
+    if (!dragging || modal.classList.contains("open") || animating) return;
     if (!e.touches || e.touches.length !== 1) return;
 
     const t = e.touches[0];
@@ -382,7 +421,7 @@
     // Decide whether this gesture is horizontal or vertical early on.
     if (lockedAxis === null) {
       if (Math.abs(rawDx) < LOCK_ANGLE_TOL && Math.abs(rawDy) < LOCK_ANGLE_TOL) return;
-      lockedAxis = (Math.abs(rawDx) > Math.abs(rawDy)) ? "x" : "y";
+      lockedAxis = (Math.abs(rawDx) > Math.abs(rawDy) + SWIPE_DOMINANCE) ? "x" : "y";
     }
 
     if (lockedAxis === "y") {
@@ -399,7 +438,7 @@
     const resisted = sign * (adx < 120 ? adx : 120 + (adx - 120) * RESIST_EDGE);
     dx = resisted;
 
-    setTranslate(dx);
+    updateTrackPosition(dx);
   }, { passive: false });
 
   window.addEventListener("touchend", (e) => {
@@ -415,11 +454,9 @@
 
     const threshold = SWIPE_THRESHOLD();
     if (dx <= -threshold) {
-      // dragged left => next
-      commitSwipe(1);
+      animateStep(1, dx);
     } else if (dx >= threshold) {
-      // dragged right => prev
-      commitSwipe(-1);
+      animateStep(-1, dx);
     } else {
       springBack();
     }
@@ -524,7 +561,7 @@
 
   if ("serviceWorker" in navigator) {
     const swCode = `
-      const CACHE = "flashcards-v3";
+      const CACHE = "flashcards-v4";
       self.addEventListener("install", (e) => {
         e.waitUntil((async () => {
           const cache = await caches.open(CACHE);
