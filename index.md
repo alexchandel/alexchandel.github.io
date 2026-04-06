@@ -8,3 +8,4 @@
 * [dfhack-remote](https://github.com/alexchandel/dfhack-remote)
 * [dwight](project0/index.html)
 * [synopsis](synopsis/)
+* [baby-flashcards](letters.html)
