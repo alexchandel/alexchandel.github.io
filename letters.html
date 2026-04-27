@@ -269,8 +269,7 @@
 
   <div id="hud">
     <div class="hudGroup">
-      <button class="pill" id="jumpBtn" title="Jump">Jump</button>
-      <div class="pill" id="pos">1 / 1</div>
+      <button class="pill" id="posBtn" title="Jump to card" aria-haspopup="dialog">1 / 1</button>
     </div>
     <div class="hudGroup">
       <button class="pill" id="fontBtn" title="Font family" aria-haspopup="menu" aria-expanded="false">Font: Default</button>
@@ -394,8 +393,7 @@
 
   const cardEl = document.getElementById("card");
   const cardTrackEl = document.getElementById("cardTrack");
-  const posEl = document.getElementById("pos");
-  const jumpBtn = document.getElementById("jumpBtn");
+  const posBtn = document.getElementById("posBtn");
   const fontBtn = document.getElementById("fontBtn");
   const fontMenu = document.getElementById("fontMenu");
   const shuffleBtn = document.getElementById("shuffleBtn");
@@ -438,12 +436,12 @@
   function updatePosition() {
     if (!deck.length) {
       i = 0;
-      posEl.textContent = "0 / 0";
+      posBtn.textContent = "0 / 0";
       return;
     }
 
     i = clampIndex(i);
-    posEl.textContent = `${i + 1} / ${deck.length}`;
+    posBtn.textContent = `${i + 1} / ${deck.length}`;
     saveIndex();
   }
 
@@ -585,7 +583,7 @@
   }
   function closeModal() { modal.classList.remove("open"); }
 
-  jumpBtn.addEventListener("click", openModal);
+  posBtn.addEventListener("click", openModal);
   closeBtn.addEventListener("click", closeModal);
   shuffleBtn.addEventListener("click", shuffleDeck);
 
