@@ -65,6 +65,11 @@
       letter-spacing: 0.02em;
       padding: 0.1em;
     }
+    #card[data-font-family="serif"] .glyph { font-family: serif; }
+    #card[data-font-family="sans-serif"] .glyph { font-family: sans-serif; }
+    #card[data-font-family="monospace"] .glyph { font-family: monospace; }
+    #card[data-font-family="cursive"] .glyph { font-family: cursive; }
+    #card[data-font-family="fantasy"] .glyph { font-family: fantasy; }
 
     #hud {
       position: fixed;
@@ -81,6 +86,12 @@
       opacity: 0.78;
       -webkit-user-select: none;
       user-select: none;
+      z-index: 10;
+    }
+    .hudGroup {
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
 
     .pill {
@@ -104,6 +115,50 @@
     }
     button.pill:active { transform: translateY(1px); }
 
+    #fontMenu {
+      position: fixed;
+      right: 14px;
+      bottom: calc(54px + env(safe-area-inset-bottom));
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 150px;
+      padding: 8px;
+      box-sizing: border-box;
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.92);
+      color: #000;
+      backdrop-filter: blur(10px);
+      z-index: 20;
+    }
+    #fontMenu.open { display: flex; }
+    @media (prefers-color-scheme: dark) {
+      #fontMenu {
+        border-color: rgba(255,255,255,0.2);
+        background: rgba(0,0,0,0.78);
+        color: #fff;
+      }
+    }
+    .fontOption {
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.7);
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
+    .fontOption.active {
+      font-weight: 700;
+      background: rgba(255,255,255,0.95);
+    }
+    @media (prefers-color-scheme: dark) {
+      .fontOption { border-color: rgba(255,255,255,0.16); background: rgba(0,0,0,0.45); }
+      .fontOption.active { background: rgba(0,0,0,0.8); }
+    }
+
     /* Jump menu modal */
     #modal {
       position: fixed;
@@ -116,6 +171,7 @@
       box-sizing: border-box;
       -webkit-user-select: none;
       user-select: none;
+      z-index: 30;
     }
     #modal.open { display: flex; }
 
@@ -212,11 +268,23 @@
   </div>
 
   <div id="hud">
-    <div style="display:flex; gap:10px; align-items:center;">
+    <div class="hudGroup">
       <button class="pill" id="jumpBtn" title="Jump">Jump</button>
       <div class="pill" id="pos">1 / 1</div>
     </div>
-    <button class="pill" id="shuffleBtn" title="Shuffle">Shuffle</button>
+    <div class="hudGroup">
+      <button class="pill" id="fontBtn" title="Font family" aria-haspopup="menu" aria-expanded="false">Font: Default</button>
+      <button class="pill" id="shuffleBtn" title="Shuffle">Shuffle</button>
+    </div>
+  </div>
+
+  <div id="fontMenu" role="menu" aria-label="Font family">
+    <button class="fontOption" type="button" role="menuitemradio" data-font-family="default">Default</button>
+    <button class="fontOption" type="button" role="menuitemradio" data-font-family="serif">Serif</button>
+    <button class="fontOption" type="button" role="menuitemradio" data-font-family="sans-serif">Sans-serif</button>
+    <button class="fontOption" type="button" role="menuitemradio" data-font-family="monospace">Monospace</button>
+    <button class="fontOption" type="button" role="menuitemradio" data-font-family="cursive">Cursive</button>
+    <button class="fontOption" type="button" role="menuitemradio" data-font-family="fantasy">Fantasy</button>
   </div>
 
   <div id="modal" role="dialog" aria-modal="true" aria-label="Jump menu">
@@ -261,6 +329,15 @@
   let deck = deckSpec.slice();
   let i = 0;
   const STORAGE_KEY = "flashcards.currentIndex";
+  const FONT_STORAGE_KEY = "flashcards.fontFamily";
+  const FONT_OPTIONS = [
+    { value: "default", label: "Default" },
+    { value: "serif", label: "Serif" },
+    { value: "sans-serif", label: "Sans-serif" },
+    { value: "monospace", label: "Monospace" },
+    { value: "cursive", label: "Cursive" },
+    { value: "fantasy", label: "Fantasy" }
+  ];
 
   function readStoredIndex() {
     try {
@@ -273,6 +350,15 @@
 
   function saveIndex() {
     try { localStorage.setItem(STORAGE_KEY, String(i)); } catch (_) {}
+  }
+
+  function readStoredFontFamily() {
+    try {
+      const raw = localStorage.getItem(FONT_STORAGE_KEY);
+      return FONT_OPTIONS.some(x => x.value === raw) ? raw : "default";
+    } catch (_) {
+      return "default";
+    }
   }
 
   // Restore starting card from URL hash, falling back to the last viewed card.
@@ -310,6 +396,8 @@
   const cardTrackEl = document.getElementById("cardTrack");
   const posEl = document.getElementById("pos");
   const jumpBtn = document.getElementById("jumpBtn");
+  const fontBtn = document.getElementById("fontBtn");
+  const fontMenu = document.getElementById("fontMenu");
   const shuffleBtn = document.getElementById("shuffleBtn");
 
   const modal = document.getElementById("modal");
@@ -406,6 +494,58 @@
   function next() { goToIndex(i + 1); }
   function prev() { goToIndex(i - 1); }
 
+  // ---------------- Font Family ----------------
+  let currentFontFamily = readStoredFontFamily();
+
+  function fontLabel(value) {
+    return (FONT_OPTIONS.find(x => x.value === value) || FONT_OPTIONS[0]).label;
+  }
+
+  function applyFontFamily(value) {
+    currentFontFamily = FONT_OPTIONS.some(x => x.value === value) ? value : "default";
+
+    if (currentFontFamily === "default") {
+      delete cardEl.dataset.fontFamily;
+      try { localStorage.removeItem(FONT_STORAGE_KEY); } catch (_) {}
+    } else {
+      cardEl.dataset.fontFamily = currentFontFamily;
+      try { localStorage.setItem(FONT_STORAGE_KEY, currentFontFamily); } catch (_) {}
+    }
+
+    fontBtn.textContent = `Font: ${fontLabel(currentFontFamily)}`;
+    for (const option of fontMenu.querySelectorAll(".fontOption")) {
+      const active = option.dataset.fontFamily === currentFontFamily;
+      option.classList.toggle("active", active);
+      option.setAttribute("aria-checked", String(active));
+    }
+  }
+
+  function closeFontMenu() {
+    fontMenu.classList.remove("open");
+    fontBtn.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleFontMenu() {
+    const open = !fontMenu.classList.contains("open");
+    fontMenu.classList.toggle("open", open);
+    fontBtn.setAttribute("aria-expanded", String(open));
+  }
+
+  fontBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleFontMenu();
+  });
+
+  fontMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const option = e.target.closest(".fontOption");
+    if (!option) return;
+    applyFontFamily(option.dataset.fontFamily);
+    closeFontMenu();
+  });
+
+  window.addEventListener("click", closeFontMenu);
+
   function shuffleInPlace(arr) {
     for (let j = arr.length - 1; j > 0; j--) {
       const k = Math.floor(Math.random() * (j + 1));
@@ -423,7 +563,11 @@
 
   // ---------------- Keyboard (desktop) ----------------
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { if (modal.classList.contains("open")) closeModal(); return; }
+    if (e.key === "Escape") {
+      if (modal.classList.contains("open")) closeModal();
+      if (fontMenu.classList.contains("open")) closeFontMenu();
+      return;
+    }
     if (modal.classList.contains("open")) return;
 
     if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
@@ -434,6 +578,7 @@
 
   // ---------------- Jump Menu ----------------
   function openModal() {
+    closeFontMenu();
     modal.classList.add("open");
     buildCategoryBar();
     buildGrid();
@@ -490,6 +635,7 @@
     }
   }
 
+  applyFontFamily(currentFontFamily);
   render();
 
   // ---- One-file PWA: manifest + service worker ----
