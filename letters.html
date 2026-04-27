@@ -18,7 +18,6 @@
       color: #000;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       -webkit-tap-highlight-color: transparent;
-      touch-action: pan-y;
       user-select: none;
       overflow: hidden;
     }
@@ -30,25 +29,35 @@
       position: relative;
       width: 100vw;
       height: 100vh;
-      overflow: hidden;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       box-sizing: border-box;
-      touch-action: pan-y;
+      overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-x: contain;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #card::-webkit-scrollbar {
+      display: none;
     }
     #cardTrack {
-      width: 300%;
+      width: max-content;
+      min-width: 100%;
       height: 100%;
       display: flex;
-      transform: translateX(-33.333333%);
-      will-change: transform;
     }
     .face {
-      width: 33.333333%;
+      flex: 0 0 100vw;
+      width: 100vw;
       height: 100%;
+      box-sizing: border-box;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       display: grid;
       place-items: center;
       text-align: center;
       line-height: 1;
+      scroll-snap-align: center;
+      scroll-snap-stop: always;
     }
     .glyph {
       font-size: min(56vw, 56vh);
@@ -199,11 +208,7 @@
 </head>
 <body>
   <div id="card" aria-label="Flash card">
-    <div id="cardTrack" aria-live="polite">
-      <div class="face"><div class="glyph" id="prevGlyph"></div></div>
-      <div class="face"><div class="glyph" id="glyph"></div></div>
-      <div class="face"><div class="glyph" id="nextGlyph"></div></div>
-    </div>
+    <div id="cardTrack"></div>
   </div>
 
   <div id="hud">
@@ -255,37 +260,54 @@
   // ---------------- State / Render ----------------
   let deck = deckSpec.slice();
   let i = 0;
+  const STORAGE_KEY = "flashcards.currentIndex";
 
-  // Restore starting card from URL hash.
+  function readStoredIndex() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw && /^\d+$/.test(raw) ? parseInt(raw, 10) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveIndex() {
+    try { localStorage.setItem(STORAGE_KEY, String(i)); } catch (_) {}
+  }
+
+  // Restore starting card from URL hash, falling back to the last viewed card.
   // Supports:
   //   #12   -> 0-based index 12
   //   #A    -> jump to first matching glyph "A"
   //   #🦁   -> jump to first matching emoji "🦁"
-  (function applyInitialHash() {
+  (function applyInitialPosition() {
     const raw = (location.hash || "").slice(1);
-    if (!raw) return;
+    if (raw) {
+      // If it's an integer, treat it as a 0-based index.
+      if (/^\d+$/.test(raw)) {
+        i = parseInt(raw, 10) || 0;
+        return;
+      }
 
-    // If it's an integer, treat it as a 0-based index.
-    if (/^\d+$/.test(raw)) {
-      i = parseInt(raw, 10) || 0;
-      return;
+      // Otherwise treat as a glyph (may include percent-encoding).
+      let glyph = raw;
+      try { glyph = decodeURIComponent(raw); } catch (_) {}
+
+      const idx = deck.findIndex(x => x.t === glyph);
+      if (idx >= 0) {
+        i = idx;
+        return;
+      }
     }
 
-    // Otherwise treat as a glyph (may include percent-encoding).
-    let glyph = raw;
-    try { glyph = decodeURIComponent(raw); } catch (_) {}
-
-    const idx = deck.findIndex(x => x.t === glyph);
-    if (idx >= 0) i = idx;
+    const stored = readStoredIndex();
+    if (stored !== null) i = stored;
   })();
 
   let activeCategory = "All";
 
   const cardEl = document.getElementById("card");
   const cardTrackEl = document.getElementById("cardTrack");
-  const prevGlyphEl = document.getElementById("prevGlyph");
-  const glyphEl = document.getElementById("glyph");
-  const nextGlyphEl = document.getElementById("nextGlyph");
   const posEl = document.getElementById("pos");
   const jumpBtn = document.getElementById("jumpBtn");
   const shuffleBtn = document.getElementById("shuffleBtn");
@@ -296,75 +318,93 @@
   const grid = document.getElementById("grid");
 
   function clampIndex(idx) {
-    const n = deck.length || 1;
-    return ((idx % n) + n) % n;
+    if (!deck.length) return 0;
+    return Math.min(Math.max(idx, 0), deck.length - 1);
   }
 
-  const TRACK_CENTER_PERCENT = -100 / 3;
+  function createFace(text) {
+    const face = document.createElement("div");
+    face.className = "face";
 
-  function updateTrackPosition(dxPx = 0, withTransition = false, durationMs = 220) {
-    cardTrackEl.style.transition = withTransition ? `transform ${durationMs}ms cubic-bezier(0.22, 0.8, 0.22, 1)` : "";
-    cardTrackEl.style.transform = `translateX(calc(${TRACK_CENTER_PERCENT}% + ${dxPx}px))`;
+    const glyph = document.createElement("div");
+    glyph.className = "glyph";
+    glyph.textContent = text;
+
+    face.appendChild(glyph);
+    return face;
   }
 
-  function render() {
+  function buildCardTrack() {
+    cardTrackEl.innerHTML = "";
+
     if (!deck.length) {
-      prevGlyphEl.textContent = "";
-      glyphEl.textContent = "—";
-      nextGlyphEl.textContent = "";
-      posEl.textContent = "0 / 0";
-      updateTrackPosition();
+      cardTrackEl.appendChild(createFace("—"));
       return;
     }
-    i = clampIndex(i);
-    prevGlyphEl.textContent = deck[clampIndex(i - 1)].t;
-    glyphEl.textContent = deck[i].t;
-    nextGlyphEl.textContent = deck[clampIndex(i + 1)].t;
-    posEl.textContent = `${i + 1} / ${deck.length}`;
-    updateTrackPosition();
-    history.replaceState(null, "", `#${i}`);
+
+    const fragment = document.createDocumentFragment();
+    for (const card of deck) fragment.appendChild(createFace(card.t));
+    cardTrackEl.appendChild(fragment);
   }
 
-  function next() { i++; render(); }
-  function prev() { i--; render(); }
-
-  let animating = false;
-  let animationTimer = 0;
-  let pendingDirection = 0;
-
-  function completeAnimatedStep(dir) {
-    if (!dir) return;
-    pendingDirection = 0;
-    if (animationTimer) {
-      window.clearTimeout(animationTimer);
-      animationTimer = 0;
+  function updatePosition() {
+    if (!deck.length) {
+      i = 0;
+      posEl.textContent = "0 / 0";
+      return;
     }
-    if (dir === 1) i++; else i--;
-    render();
-    animating = false;
+
+    i = clampIndex(i);
+    posEl.textContent = `${i + 1} / ${deck.length}`;
+    saveIndex();
   }
 
-  function settleAnimation() {
-    if (!animating || !pendingDirection) return;
-    completeAnimatedStep(pendingDirection);
-  }
-
-  function animateStep(dir, dragDistance = 0) {
-    if (!deck.length || animating) return;
-
-    animating = true;
-    pendingDirection = dir;
+  function scrollToIndex(idx, behavior = "auto") {
     const width = Math.max(cardEl.clientWidth, 1);
-    const startDx = dragDistance;
-    const targetDx = dir === 1 ? -width : width;
-
-    updateTrackPosition(startDx, false);
-    window.requestAnimationFrame(() => {
-      updateTrackPosition(targetDx, true, 240);
-    });
-
-    animationTimer = window.setTimeout(() => completeAnimatedStep(dir), 250);
+    cardEl.scrollTo({ left: width * clampIndex(idx), behavior });
   }
+
+  function render(behavior = "auto") {
+    buildCardTrack();
+    updatePosition();
+    scrollToIndex(i, behavior);
+  }
+
+  function syncIndexFromScroll() {
+    if (!deck.length) return;
+    const width = Math.max(cardEl.clientWidth, 1);
+    const idx = clampIndex(Math.round(cardEl.scrollLeft / width));
+    if (idx !== i) {
+      i = idx;
+      updatePosition();
+    }
+  }
+
+  let scrollSettleTimer = 0;
+  cardEl.addEventListener("scroll", () => {
+    if (scrollSettleTimer) window.clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = window.setTimeout(syncIndexFromScroll, 120);
+  }, { passive: true });
+
+  cardEl.addEventListener("scrollend", () => {
+    if (scrollSettleTimer) {
+      window.clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = 0;
+    }
+    syncIndexFromScroll();
+  }, { passive: true });
+
+  window.addEventListener("resize", () => scrollToIndex(i), { passive: true });
+
+  function goToIndex(idx, behavior = "smooth") {
+    if (!deck.length) return;
+    i = clampIndex(idx);
+    updatePosition();
+    scrollToIndex(i, behavior);
+  }
+
+  function next() { goToIndex(i + 1); }
+  function prev() { goToIndex(i - 1); }
 
   function shuffleInPlace(arr) {
     for (let j = arr.length - 1; j > 0; j--) {
@@ -386,108 +426,11 @@
     if (e.key === "Escape") { if (modal.classList.contains("open")) closeModal(); return; }
     if (modal.classList.contains("open")) return;
 
-    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); animateStep(1); }
-    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); animateStep(-1); }
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
     else if (e.key.toLowerCase() === "s") { shuffleDeck(); }
     else if (e.key.toLowerCase() === "j") { openModal(); }
   }, { passive: false });
-
-  // ---------------- Horizontal swipe drag ----------------
-  // Swipes need clear horizontal intent and enough travel so taps do not advance.
-  let dragging = false;
-  let startX = 0, startY = 0;
-  let dx = 0;
-  let lockedAxis = null; // "x" or "y" or null
-  const LOCK_ANGLE_TOL = 10; // px: initial ambiguity tolerance
-  const SWIPE_THRESHOLD = () => Math.min(160, Math.max(96, window.innerWidth * 0.2));
-  const SWIPE_DOMINANCE = 18;
-  const RESIST_EDGE = 0.35; // resistance when dragging far
-
-  function springBack() {
-    updateTrackPosition(0, true, 180);
-    window.setTimeout(() => { updateTrackPosition(); }, 190);
-  }
-
-  window.addEventListener("touchstart", (e) => {
-    if (modal.classList.contains("open")) return;
-    if (!e.touches || e.touches.length !== 1) return;
-
-    if (animating) settleAnimation();
-
-    dragging = true;
-    lockedAxis = null;
-    dx = 0;
-
-    const t = e.touches[0];
-    startX = t.clientX;
-    startY = t.clientY;
-  }, { passive: true });
-
-  window.addEventListener("touchmove", (e) => {
-    if (!dragging || modal.classList.contains("open") || animating) return;
-    if (!e.touches || e.touches.length !== 1) return;
-
-    const t = e.touches[0];
-    const curX = t.clientX;
-    const curY = t.clientY;
-
-    const rawDx = curX - startX;
-    const rawDy = curY - startY;
-
-    // Decide whether this gesture is horizontal or vertical early on.
-    if (lockedAxis === null) {
-      if (Math.abs(rawDx) < LOCK_ANGLE_TOL && Math.abs(rawDy) < LOCK_ANGLE_TOL) return;
-      lockedAxis = (Math.abs(rawDx) > Math.abs(rawDy) + SWIPE_DOMINANCE) ? "x" : "y";
-    }
-
-    if (lockedAxis === "y") {
-      // Let the browser handle vertical scroll/bounce.
-      return;
-    }
-
-    // Horizontal: prevent back/forward navigation and scroll.
-    e.preventDefault();
-
-    // Resistance: as you pull further, movement dampens slightly.
-    const sign = Math.sign(rawDx);
-    const adx = Math.abs(rawDx);
-    const resisted = sign * (adx < 120 ? adx : 120 + (adx - 120) * RESIST_EDGE);
-    dx = resisted;
-
-    updateTrackPosition(dx);
-  }, { passive: false });
-
-  window.addEventListener("touchend", (e) => {
-    if (!dragging) return;
-    dragging = false;
-
-    if (lockedAxis !== "x") {
-      // If it was vertical or never decided, do nothing special.
-      dx = 0;
-      lockedAxis = null;
-      return;
-    }
-
-    const threshold = SWIPE_THRESHOLD();
-    if (dx <= -threshold) {
-      animateStep(1, dx);
-    } else if (dx >= threshold) {
-      animateStep(-1, dx);
-    } else {
-      springBack();
-    }
-
-    dx = 0;
-    lockedAxis = null;
-  }, { passive: true });
-
-  window.addEventListener("touchcancel", () => {
-    if (!dragging) return;
-    dragging = false;
-    springBack();
-    dx = 0;
-    lockedAxis = null;
-  }, { passive: true });
 
   // ---------------- Jump Menu ----------------
   function openModal() {
@@ -540,8 +483,7 @@
       cell.textContent = deck[k].t;
       cell.title = `${deck[k].c}`;
       cell.addEventListener("click", () => {
-        i = k;
-        render();
+        goToIndex(k, "auto");
         closeModal();
       });
       grid.appendChild(cell);
