@@ -273,7 +273,7 @@
     </div>
     <div class="hudGroup">
       <button class="pill" id="fontBtn" title="Font family" aria-haspopup="menu" aria-expanded="false">Font: Default</button>
-      <button class="pill" id="shuffleBtn" title="Shuffle">Shuffle</button>
+      <button class="pill" id="shuffleBtn" title="Shuffle" aria-pressed="false">Shuffle</button>
     </div>
   </div>
 
@@ -301,7 +301,9 @@
 (() => {
   // ---------------- Deck ----------------
   const deckSpec = [];
-  function addMany(category, items) { for (const t of items) deckSpec.push({ t, c: category }); }
+  function addMany(category, items) {
+    for (const t of items) deckSpec.push({ id: deckSpec.length, t, c: category });
+  }
 
   addMany("ABC", [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"]);
   addMany("abc", [..."abcdefghijklmnopqrstuvwxyz"]);
@@ -327,7 +329,8 @@
   // ---------------- State / Render ----------------
   let deck = deckSpec.slice();
   let i = 0;
-  const STORAGE_KEY = "flashcards.currentIndex";
+  let isShuffled = false;
+  const CARD_STORAGE_KEY = "flashcards.currentCardId";
   const FONT_STORAGE_KEY = "flashcards.fontFamily";
   const FONT_OPTIONS = [
     { value: "default", label: "Default" },
@@ -338,17 +341,18 @@
     { value: "fantasy", label: "Fantasy" }
   ];
 
-  function readStoredIndex() {
+  function readStoredCardId() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(CARD_STORAGE_KEY);
       return raw && /^\d+$/.test(raw) ? parseInt(raw, 10) : null;
     } catch (_) {
       return null;
     }
   }
 
-  function saveIndex() {
-    try { localStorage.setItem(STORAGE_KEY, String(i)); } catch (_) {}
+  function saveCurrentCardId() {
+    if (!deck.length) return;
+    try { localStorage.setItem(CARD_STORAGE_KEY, String(deck[i].id)); } catch (_) {}
   }
 
   function readStoredFontFamily() {
@@ -385,8 +389,11 @@
       }
     }
 
-    const stored = readStoredIndex();
-    if (stored !== null) i = stored;
+    const storedId = readStoredCardId();
+    if (storedId !== null) {
+      const idx = deck.findIndex(x => x.id === storedId);
+      if (idx >= 0) i = idx;
+    }
   })();
 
   let activeCategory = "All";
@@ -442,7 +449,7 @@
 
     i = clampIndex(i);
     posBtn.textContent = `${i + 1} / ${deck.length}`;
-    saveIndex();
+    saveCurrentCardId();
   }
 
   function scrollToIndex(idx, behavior = "auto") {
@@ -491,6 +498,17 @@
 
   function next() { goToIndex(i + 1); }
   function prev() { goToIndex(i - 1); }
+
+  function currentCard() {
+    return deck[i] || null;
+  }
+
+  function setDeckOrder(nextDeck, current = currentCard()) {
+    deck = nextDeck;
+    i = current ? Math.max(0, deck.findIndex(x => x.id === current.id)) : 0;
+    render();
+    if (modal.classList.contains("open")) buildGrid();
+  }
 
   // ---------------- Font Family ----------------
   let currentFontFamily = readStoredFontFamily();
@@ -552,11 +570,19 @@
   }
 
   function shuffleDeck() {
-    const current = deck[i];
-    shuffleInPlace(deck);
-    i = Math.max(0, deck.findIndex(x => x.t === current.t && x.c === current.c));
-    render();
-    if (modal.classList.contains("open")) buildGrid();
+    isShuffled = !isShuffled;
+
+    const nextDeck = deckSpec.slice();
+    if (isShuffled) shuffleInPlace(nextDeck);
+
+    setDeckOrder(nextDeck);
+    updateShuffleButton();
+  }
+
+  function updateShuffleButton() {
+    shuffleBtn.textContent = isShuffled ? "Unshuffle" : "Shuffle";
+    shuffleBtn.title = isShuffled ? "Unshuffle" : "Shuffle";
+    shuffleBtn.setAttribute("aria-pressed", String(isShuffled));
   }
 
   // ---------------- Keyboard (desktop) ----------------
@@ -634,6 +660,7 @@
   }
 
   applyFontFamily(currentFontFamily);
+  updateShuffleButton();
   render();
 
   // ---- One-file PWA: manifest + service worker ----
