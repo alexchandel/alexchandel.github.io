@@ -41,14 +41,13 @@
       display: none;
     }
     #cardTrack {
-      width: max-content;
-      min-width: 100%;
+      width: 100%;
       height: 100%;
       display: flex;
     }
     .face {
-      flex: 0 0 100vw;
-      width: 100vw;
+      flex: 0 0 100%;
+      width: 100%;
       height: 100%;
       box-sizing: border-box;
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -453,8 +452,10 @@
   }
 
   function scrollToIndex(idx, behavior = "auto") {
-    const width = Math.max(cardEl.clientWidth, 1);
-    cardEl.scrollTo({ left: width * clampIndex(idx), behavior });
+    const face = cardTrackEl.children[clampIndex(idx)];
+    if (!face) return;
+
+    face.scrollIntoView({ behavior, block: "nearest", inline: "start" });
   }
 
   function render(behavior = "auto") {
@@ -465,8 +466,15 @@
 
   function syncIndexFromScroll() {
     if (!deck.length) return;
-    const width = Math.max(cardEl.clientWidth, 1);
-    const idx = clampIndex(Math.round(cardEl.scrollLeft / width));
+
+    const rect = cardEl.getBoundingClientRect();
+    const el = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    const face = el && el.closest(".face");
+    if (!face || face.parentNode !== cardTrackEl) return;
+
+    const idx = Array.prototype.indexOf.call(cardTrackEl.children, face);
+    if (idx < 0) return;
+
     if (idx !== i) {
       i = idx;
       updatePosition();
