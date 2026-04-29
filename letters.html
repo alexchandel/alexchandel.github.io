@@ -37,6 +37,9 @@
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
     }
+    #card[data-swipe-locked="true"] {
+      overflow-x: hidden;
+    }
     #card::-webkit-scrollbar {
       display: none;
     }
@@ -269,6 +272,7 @@
   <div id="hud">
     <div class="hudGroup">
       <button class="pill" id="posBtn" title="Jump to card" aria-haspopup="dialog">1 / 1</button>
+      <button class="pill" id="lockBtn" title="Lock swiping" aria-pressed="false">Lock</button>
     </div>
     <div class="hudGroup">
       <button class="pill" id="fontBtn" title="Font family" aria-haspopup="menu" aria-expanded="false">Font: Default</button>
@@ -400,6 +404,7 @@
   const cardEl = document.getElementById("card");
   const cardTrackEl = document.getElementById("cardTrack");
   const posBtn = document.getElementById("posBtn");
+  const lockBtn = document.getElementById("lockBtn");
   const fontBtn = document.getElementById("fontBtn");
   const fontMenu = document.getElementById("fontMenu");
   const shuffleBtn = document.getElementById("shuffleBtn");
@@ -483,6 +488,7 @@
 
   let scrollSettleTimer = 0;
   cardEl.addEventListener("scroll", () => {
+    if (isSwipeLocked) return;
     if (scrollSettleTimer) window.clearTimeout(scrollSettleTimer);
     scrollSettleTimer = window.setTimeout(syncIndexFromScroll, 120);
   }, { passive: true });
@@ -578,6 +584,29 @@
 
   window.addEventListener("click", closeFontMenu);
 
+  // ---------------- Swipe Lock ----------------
+  let isSwipeLocked = false;
+
+  function updateSwipeLock() {
+    if (isSwipeLocked) cardEl.dataset.swipeLocked = "true";
+    else delete cardEl.dataset.swipeLocked;
+
+    if (scrollSettleTimer) {
+      window.clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = 0;
+    }
+
+    lockBtn.textContent = isSwipeLocked ? "Unlock" : "Lock";
+    lockBtn.title = isSwipeLocked ? "Unlock swiping" : "Lock swiping";
+    lockBtn.setAttribute("aria-pressed", String(isSwipeLocked));
+    scrollToIndex(i);
+  }
+
+  function toggleSwipeLock() {
+    isSwipeLocked = !isSwipeLocked;
+    updateSwipeLock();
+  }
+
   function shuffleInPlace(arr) {
     for (let j = arr.length - 1; j > 0; j--) {
       const k = Math.floor(Math.random() * (j + 1));
@@ -629,6 +658,7 @@
   function closeModal() { modal.classList.remove("open"); }
 
   posBtn.addEventListener("click", openModal);
+  lockBtn.addEventListener("click", toggleSwipeLock);
   closeBtn.addEventListener("click", closeModal);
   shuffleBtn.addEventListener("click", shuffleDeck);
 
@@ -679,6 +709,7 @@
   }
 
   applyFontFamily(currentFontFamily);
+  updateSwipeLock();
   updateShuffleButton();
   render();
 
