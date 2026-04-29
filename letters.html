@@ -499,6 +499,14 @@
   function next() { goToIndex(i + 1); }
   function prev() { goToIndex(i - 1); }
 
+  function seekToGlyph(glyph) {
+    const idx = deck.findIndex(x => x.t === glyph);
+    if (idx < 0) return false;
+
+    goToIndex(idx);
+    return true;
+  }
+
   function currentCard() {
     return deck[i] || null;
   }
@@ -594,10 +602,13 @@
     }
     if (modal.classList.contains("open")) return;
 
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && seekToGlyph(e.key)) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
-    else if (e.key.toLowerCase() === "s") { shuffleDeck(); }
-    else if (e.key.toLowerCase() === "j") { openModal(); }
   }, { passive: false });
 
   // ---------------- Jump Menu ----------------
